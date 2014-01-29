@@ -148,14 +148,17 @@ the data type of the enclosed value. Valid data types are:
 `string`, `fixnum`, `boolean`, `hash`, and `array`. The syntax for each of 
 these types are as follows:
 
-* **string**  
-    <foo:key1 type=string>my_string_value</foo:key1>
+* **string**
 
-* **fixnum**  
-    <foo:key2 type=fixnum>5.6</foo:key2>
+        <foo:key1 type=string>my_string_value</foo:key1>
 
-* **boolean**  
-    <foo:key3 type=boolean>true</foo:key3>  
+* **fixnum**
+
+        <foo:key2 type=fixnum>5.6</foo:key2>
+
+* **boolean**
+
+        <foo:key3 type=boolean>true</foo:key3>  
 
 * **hash**
 
@@ -184,9 +187,9 @@ with `array` or `hash` property is described in the
 The generic JSON format of a FRCP message is:
 
         {
-          "src": RID,
           "op": MTYPE,
           "mid": ID,
+          "src": RID,
           "ts": TIMESTAMP,
           "replyto": TOPIC,
           ....
@@ -224,7 +227,7 @@ three alternative syntax (i.e. key 1 to 3) below:
             "val": "some_value"
           },
           "key3": {
-            "val": 1024
+            "val": 1024,
             "unit": "bps"
           }
         }
@@ -268,3 +271,56 @@ with `array` or `hash` property is described in the
 [Configure Syntax section](#syntax_configure).
 
 [(jump to top)](#frcp)
+
+## <a name="syntax_inform"></a>Inform Syntax
+
+A FRCP entity publishes an **inform** message to provide some information on 
+some of its properties, which may have changed as a result of another message 
+that it has previously received (e.g. a **configure** or a **request** 
+message). In addition, a FRCP entity may also publish spontaneous or 
+unsolicited **inform** messages to provide ongoing information on some of its 
+properties. 
+
+An **inform** message has the following XML syntax:
+
+        <inform xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
+          <src>RID</src>
+          <ts>TIMESTAMP</ts>
+          <itype>TYPE</itype>
+          <cid>CID</cid>
+          ....     
+        </inform> 
+
+Or alternatively the following JSON syntax:
+
+        {
+          "op": "inform",
+          "mid": "ID",
+          "src": "RID",
+          "ts": "TIMESTAMP",
+          "itype":"TYPE",
+          "cid": "CID",
+          ....
+        }
+
+* `TYPE` =  the type of this inform message. All resources must support the 
+following basic types: CREATION.OK, CREATION.FAILED, STATUS, RELEASED, ERROR, 
+and WARN. In addition, any resource may define its own particular types of 
+inform message, following the convention BASIC_TYPE.SPECIFIC_TYPE. For example, 
+if you have a custom resource which wants to return an inform message as a 
+reply to a configure message that contained a syntax error, then that custom 
+resource may define and use the custom inform type ERROR.SYNTAX.
+
+* `CID` = this is the Context ID for this message. This element or object must 
+be present only if this inform message is a reply to another message, in which 
+case CID must be the ID of the original message. This element is not present in 
+a spontaneous inform message.
+
+
+
+
+
+
+
+
+
