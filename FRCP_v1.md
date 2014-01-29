@@ -30,8 +30,7 @@ different messaging framework. For instance, in an RTP like framework the
 observer is usually the requester itself, while in a publish-subscribe 
 framework the observer is a stand-in for a publication.
 
-![](./fig_overview.svg)
-
+![https://raw.github.com/mytestbed/specification/master/fig_overview.svg](https://rawgithub.com/mytestbed/specification/master/fig_overview.svg)  
 
 The protocol consists of five messages:
 [inform](#syntax_inform),
@@ -41,7 +40,7 @@ The protocol consists of five messages:
 [release](#syntax_release).
 A basic interaction pattern is shown in the figure below.
 
-![](./fig_interaction.svg)
+![https://raw.github.com/mytestbed/specification/master/fig_interaction.svg](https://rawgithub.com/mytestbed/specification/master/fig_interaction.svg)  
 
 For many implementation it will be impractical to create a directly addressable 
 message endpoint for every component and we therefore introduce an optional 
