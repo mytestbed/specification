@@ -1,0 +1,28 @@
+skinparam shadowing false
+hide footbox
+
+actor Requester
+participant "R1" as R1
+participant "R2" as R2
+
+
+activate R1
+Requester -> R1 : create
+R1 --\ R2
+activate R2
+R1 -> R1 : inform(created R1)
+
+Requester -> R2 : configure
+R2 -> R2 : inform(current state)
+
+Requester -> R2 : request
+R2 -> R2 : inform(current state)
+
+...
+R2 -> R2 : inform(current state)
+
+Requester -> R1 : release(Resource 2)
+R1 --\ R2
+deactivate R2
+
+R1 -> R1 : inform (R2 released)

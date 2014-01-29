@@ -1,0 +1,10 @@
+hide footbox
+skinparam shadowing false
+
+actor Requester
+participant Component
+participant Observer
+
+Requester -> Component : message
+activate Component
+Component --> Observer :  inform
