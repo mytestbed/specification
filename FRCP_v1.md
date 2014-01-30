@@ -19,6 +19,9 @@ This document is organised as follows:
 [Create Syntax](#syntax_create)  
 [Release Syntax](#syntax_release)  
 [Optional Guard Syntax](#syntax_guard)  
+[Handling Groups of Resources](#syntax_group)  
+
+----
 
 ## <a name="proto_inter"></a>Protocol and Interactions
 
@@ -49,6 +52,8 @@ message endpoint for every component and we therefore introduce an optional
 requiring the message to contain the component id as well.
 
 [(jump to top)](#frcp)
+
+----
 
 ## <a name="syntax_msg"></a>Generic Message Syntax
 
@@ -272,7 +277,11 @@ with `array` or `hash` property is described in the
 
 [(jump to top)](#frcp)
 
+----
+
 ## <a name="syntax_inform"></a>Inform Syntax
+
+### Overview
 
 A FRCP entity publishes an **inform** message to provide some information on 
 some of its properties, which may have changed as a result of another message 
@@ -316,11 +325,567 @@ be present only if this inform message is a reply to another message, in which
 case CID must be the ID of the original message. This element is not present in 
 a spontaneous inform message.
 
+An **inform** message may further have child elements (XML) or objects (JSON) 
+specific to its type. For example, a STATUS **inform** message will contain a 
+`props` element/object describing the status of the resource's properties. Such 
+`props` element/object was described previously in the 
+[Generic Syntax section above](#syntax_msg).
+The next sections will provide more details on the different types of **inform**
+messages that must issued by a resource as a reply to specific received FRCP 
+messages.
+
+### Usage
+
+An FRCP-enabled entity:
+
+1. may publish an **inform** message spontaneously to provide unsolicited 
+report about some of its properties
+2. should publish an **inform** message as a reply to previously received 
+**create**, **configure**, **request**, or **release** messages
+3. should publish its inform message on its main topic address (e.g. this could 
+be mapped from its globally unique ID as is often the case in OMF6 resources).
+However, if this **inform** message is a reply to a previously received message
+which had a `replyto` element/object set, then a copy of this **inform** 
+message must also be published to the topic address specified by that `replyto`.
+
+### Examples
+
+An spontaneous **inform** message issued by a resource with the ID 'node123' 
+and the type 'vm' (i.e. virtual machine) defined at 
+'http://foo.com/virtual_machine'. This example also shows the three alternative 
+syntaxes to describe property values 
+(see [Generic Syntax section above](#syntax_msg)).
+
+* XML
+
+          <inform xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="48fa94">
+            <src>xmpp://node123@domainA.com</src>
+            <ts>1360889609</ts>
+            <itype>STATUS</itype>
+            <props xmlns:vm="http://foo.com/virtual_machine">
+              <vm:os>
+                <value>ubuntu</value>
+              </vm:os>
+              <vm:osversion>12.04</vm:osversion>
+              <vm:ram>
+                <value>8</value>
+                <unit>GB</unit>
+              </vm:ram>
+            </props>
+          </inform>
+* JSON
+
+          {
+            "op": "inform",
+            "mid": "48fa94s",
+            "src": "amqp://domainA.com/node123",
+            "ts": "1360889609",
+            "itype":"STATUS",
+            "props": {
+              "os": "ubuntu",        
+              "osversion": {
+                "val": 12.04
+              },
+              "ram": {
+                "val": 8,
+                "unit": "GB"
+              }
+            }          
+          }
+
+
+[(jump to top)](#frcp)
+
+----
+
+## <a name="syntax_configure"></a>Configure Syntax
+
+### Overview
+
+A configure message is published to a topic address to ask its subscriber(s) to 
+set some of its (their) properties to some given values. 
+
+It has the following XML or JSON syntax:
+
+      <configure xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
+        <src>RID</src>
+        <ts>TIMESTAMP</ts>
+        <props xmlns:foo="http://foo.com">
+           <key1>...</key1>
+            ....     
+        </props>
+      </configure>
+
+
+      {
+        "op": "configure",
+        "mid": "ID",
+        "src": "RID",
+        "ts": "TIMESTAMP",
+        "props": {
+          "key1": ... ,
+          ...
+        }
+      }
+
+As discussed above in the [Generic Syntax section](#syntax_msg), the `props`
+element/object may include several `key` elements/objects. Each `key` refers to
+a single property of the resource, and holds the value to be set to that 
+property.
+
+### Usage
+
+When a FRCP-enabled entity receives a **configure** message:
+
+1. it should try to set its properties as described in the `props` part of that
+message. More precisely, if `props` contains the key `foo` with the value `bar`:
+    * if the receiving entity does not have a property named `foo`, then it 
+    should publish back an **inform** message of type ERROR
+    * if it does have a property named `foo`, then it should try to assign the 
+    value `bar` to that property 'foo'
+
+    * **About the Assignment of a Value to Propery**: 
+        * when not advertised otherwise by the resource itself, *assign* in the
+        general case has the meaning: "replacing the previous value X1 of type 
+        Y1 held by property `foo` with the new value X2 of type Y2 provided by 
+        this configure message"    
+        * For example:
+            * if `foo` previously held a value 8 of type number, and 
+            the key/value `"foo": 23` is received, then the resource should try
+            to set `foo` to the value `23` of type number
+            * if `foo` previously held a value 8 of type number, and the 
+            key/value `"foo": "Alice"` is received, then the resource should try
+            to set `foo` to the value `Alice` of type string
+            * if `foo` previously held a value [1,2,3] of type array, and the
+            key/value `"foo": [9]` is received, then the resource should try to
+            set `foo` to the value `[9]` of type array
+        * Thus, FRCP does not mandate any type checking for properties. However,
+        a specific resources is free to implement its own type checking or 
+        casting as it sees fit, and return an **inform** message of type ERROR
+        as a reply to a **configure** message with assignments that fail its 
+        type checking
+        * Furthermore, FRCP also allows a given resource to implement and
+        advertise any custom assignment behaviour as it sees fit. For example, 
+        when explicitly mentioned in the resource's documentation, it could 
+        decide to:
+            * set the value of `foo` to SHA1("Alice"), when it receives the 
+            key/value `"foo": "Alice"`
+            * set the value of `foo` to the array [1,2,3,9], when it receives 
+            the key/value `"foo": [9]` and `foo` previously held the value 
+            [1,2,3] of type array.
+
+2. it must publish an **inform** message to its main topic address (e.g. 
+typcially in OMF6 entities implementing FRCP, this would the topic derived from 
+the resource's unique ID) to inform on the outcome of that configuration. This 
+inform message must:
+    * have its `cid` element/object set with the ID of the received 
+    **configure** message (i.e. the value of `mid` element/object of the
+    **configure** message).
+    * provide in its `props` element/object the list of properties that have
+    been modified as a result of the received **configure** message. This list
+    of key/value properties should follow the `props` format described in the
+    above [Generic Syntax section](#syntax_msg).
+
+For some property the update from a previous value to a new one may take some 
+time (e.g. changing the `filesystem` property of a disk resource from `ext3` to
+`ext4` might require formatting, which would not be immediate). During that
+updating process, FRCP defines an extended optional syntax for the `props`
+element/object, which allows ongoing consecutive **inform** message to provide
+progress updates about the configuration. This extended optional syntax is as 
+follows for XML or JSON
+
+        <props xmlns:foo="http://foo.com">
+          <foo:key1>   
+            <current>V1</current>
+            <target>V2</target>
+            <progress>V3</progress>
+            <msg>MSG</progress>
+          </foo:key1>
+        </props>
+
+
+        "props": {
+          "key1": {
+            "current": V1,
+            "target": V2,
+            "progress": V3,
+            "msg": MSG,
+          }
+        }
+
+  * `V1` = the current value of the property `key1`.
+  * `V2` = the target value for `key1` as requested by the last **configure** 
+  message. The configuration of `key` is assumed to be complete if and only if
+   `V1` equals `V2`.
+  * `V3` = optional, when present it is a progress indicator interger from 0 to 
+  100, with 100 meaning that the configuration is complete (i.e. `V1` equals 
+  `V2`)
+  * `MSG` = optional, a text message with more information on the property 
+  setting process
+
+
+### Examples
+
+These are some examples of **configure** messages and their corresponding 
+**inform** reply messages, both in XML and JSON.
+
+**example 1 (XML)**
+
+      <configure xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="83ty28">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360895974</ts>
+        <props xmlns:iperf="http://foo.com/iperf">
+           <iperf:target type='hash'>
+             <ip type='string'>192.168.1.2</ip>
+             <port type='fixnum'>5001</port>
+           </iperf:target>
+        </props>
+      </configure> 
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="d934l8">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360895982</ts>
+        <cid>83ty28</cid>
+        <itype>STATUS</itype>
+        <props xmlns:iperf="http://foo.com/iperf">
+           <iperf:target type='hash'>
+             <ip type='string'>192.168.1.2</ip>
+             <port type='fixnum'>5001</port>
+           </iperf:target>
+        </props>
+      </inform>
+
+**example 1 (JSON)**
+
+      {
+        "op": "configure",
+        "mid": "83ty28",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360895974",
+        "props": {
+          "ip": "192.168.1.2" ,
+          "port": 5001
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "d934l8",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360895982",
+        "cid": "83ty28",
+        "itype": "STATUS",
+        "props": {
+          "ip": "192.168.1.2" ,
+          "port": 5001
+        }
+      }
+
+**example 2 (XML)**
+
+      <configure xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="4gt521">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360895906</ts>
+        <props xmlns:iperf="http://foo.com/iperf">
+           <iperf:transport>UDP</iperf:transport>
+           <iperf:bitrate>
+             <unit>kBps</unit>
+             <value>1024</value>
+           </iperf:bitrate>
+        </props>
+      </configure> 
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="1d3a9x">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360895966</ts>
+        <cid>4gt521</cid>
+        <itype>STATUS</itype>
+        <props xmlns:iperf="http://foo.com/iperf">
+           <iperf:bitrate>
+             <unit>kBps</unit>
+             <current>512</current>
+             <target>1024</target>
+             <progress>50</progress>
+           </iperf:bitrate>
+           <iperf:transport>UDP</iperf:transport>
+        </props>
+      </inform>
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="63ha70">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360895976</ts>
+        <cid>4gt521</cid>
+        <itype>STATUS</itype>
+        <props xmlns:iperf="http://foo.com/iperf">
+           <iperf:bitrate>
+             <unit>kBps</unit>
+             <current>1024</current>
+             <target>1024</target>
+             <progress>100</progress>
+           </iperf:bitrate>
+           <iperf:transport>UDP</iperf:transport>
+        </props>
+      </inform>
+
+**example 2 (JSON)**
+
+      {
+        "op": "configure",
+        "mid": "4gt521",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360895906",
+        "props": {
+          "transport": "UDP" ,
+          "bitrate": 1024
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "1d3a9x",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360895966",
+        "cid": "4gt521",
+        "itype": "STATUS",
+        "props": {
+          "transport": "UDP",
+          "bitrate": {
+            "unit": "kBps",
+            "current": 512,
+            "target": 1025,
+            "progress": 50
+          }
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "63ha70",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360895976",
+        "cid": "4gt521",
+        "itype": "STATUS",
+        "props": {
+          "transport": "UDP",
+          "bitrate": {
+            "unit": "kBps",
+            "current": 1024,
+            "target": 1025,
+            "progress": 100
+          }
+        }
+      }
+
+[(jump to top)](#frcp)
+
+----
+
+## <a name="syntax_request"></a>Request Syntax
+
+### Overview
+
+A **request** message is published to a topic address to ask its subscriber(s) 
+to publish information about some properties. This message has the following
+XML and JSON syntax:
+
+      <request xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
+        <src>RID</src>
+        <ts>TIMESTAMP</ts>
+        <props xmlns:foo="http://foo.com">
+           <key1 />
+           <key2 />
+            ....     
+        </props>
+      </request> 
+
+
+      {
+        "op": "request",
+        "mid": "ID",
+        "src": "RID",
+        "ts": "TIMESTAMP",
+        "props": {
+          "key1": "",
+          "key2": "",
+          ....
+          }
+        }
+      }
+
+In the above message, the `props` element/object only contains the list of
+properties (e.g. `key1`, `key2`) for which the current values are requested.
+
+### Usage
+
+When a FRCP-enabled entity receives a **request** message:
+
+1. it should publish an **inform** message, which provides the current values of
+the properties listed within the `props` section of the **request** message.
+This **inform** message is similar to the one sent as a reply to a 
+**configure** message ([Configure Syntax section](#syntax_configure))
+2. it should publish this **inform** message to its main topic address (e.g. in 
+the OMF6 implementation, this topic derives from the entity's unique resource 
+ID)
+3. if the **request** message contains a `replyto` element/object, then a copy 
+of this **inform** message should also be published on the topic address given 
+in that `replyto` element/object
+
+### Examples
+
+These are some examples of **request** messages and their corresponding 
+**inform** reply messages, both in XML and JSON.
+
+**example 1 (XML)**
+
+      <request xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="ea4afb">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360897589</ts>
+        <props xmlns:iperf="http://foo.com/iperf">
+          <iperf:protocol />
+          <iperf:bitrate />
+          <iperf:packet_size />
+        </props>
+      </request>
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="86df5f">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360897595</ts>
+        <cid>ea4afb</cid>
+        <itype>STATUS</itype>
+        <props xmlns:iperf="http://foo.com/iperf">
+          <iperf:protocol>UDP</iperf:protocol>
+          <iperf:bitrate>
+             <unit>kBps</unit>
+             <value>1024</value>
+          </iperf:bitrate> 
+          <iperf:packet_size">
+             <unit>bytes</unit>
+             <value>512</value>
+        </props>
+      </inform>
+
+**example 1 (JSON)**
+
+      {
+        "op": "request",
+        "mid": "ea4afb",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360897589",
+        "props": {
+          "protocol": "",
+          "bitrate": "",
+          "packet_size": ""
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "86df5f",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360897595",
+        "cid": "ea4afb",
+        "itype": "STATUS",
+        "props": {
+          "protocol": "UDP",
+          "bitrate": { "unit": "kBps", "value": 1024},
+          "packet_size": { "unit": "byte", "value": 512},
+        }
+      }
+
+**example 2 (XML)**
+
+      <request xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="g345h7">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360897611</ts>
+        <props xmlns:wirelessnode="http://foo.com/wirelessnode">
+          <wirelessnode:child_resource_types />
+        </props>
+      </request>
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="d812h0">
+        <src>xmpp://node456@domainB.com</src>
+        <ts>1360897619</ts>
+        <cid>g345h7</cid>
+        <itype>STATUS</itype>
+        <props xmlns:wirelessnode="http://foo.com/wirelessnode">
+          <wirelessnode:child_resource_types type='Array'>
+            <item type='string'>Application</item>
+            <item type='string'>WiFiAtherosInterface</item>
+            <item type='string'>WiFiIntelInterface</item>
+            <item type='string'>WiMaxInterface</item>
+          <wirelessnode:child_resource_types>
+        </props>
+      </inform>
+
+**example 2 (JSON)**
+
+      {
+        "op": "request",
+        "mid": "g345h7",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360897611",
+        "props": {
+          "child_resource_types": ""
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "86df5f",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360897619",
+        "cid": "d812h0",
+        "itype": "STATUS",
+        "props": {
+          "child_resource_types": [
+            "Application",
+            "WiFiAtherosInterface",
+            "WiFiIntelInterface",
+            "WiMaxInterface"
+          ]
+        }
+      }
+
+[(jump to top)](#frcp)
+
+----
+
+## <a name="syntax_create"></a>Create Syntax
+
+### Overview
+### Usage
+### Examples
 
 
 
+[(jump to top)](#frcp)
+
+----
+
+## <a name="syntax_release"></a>Release Syntax
+
+### Overview
+### Usage
+### Examples
 
 
 
+[(jump to top)](#frcp)
 
+----
+
+## <a name="syntax_guard"></a>Optional Guard Element or Object
+
+### Usage
+### Examples
+
+
+[(jump to top)](#frcp)
+
+----
+
+## <a name="syntax_group"></a>Handling Groups of Resources
+
+### Usage
+### Examples
 
