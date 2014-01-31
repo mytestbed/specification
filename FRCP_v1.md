@@ -1,4 +1,3 @@
-
 # <a name="frcp"></a>Federated Resource Control Protocol (FRCP)
 
 This document describes the *Federated Resource Control Protocol (FRCP)*, which 
@@ -382,6 +381,7 @@ syntaxes to describe property values
             "ts": "1360889609",
             "itype":"STATUS",
             "props": {
+              "@vocab": "http://foo.com/virtual_machine#"
               "os": "ubuntu",        
               "osversion": {
                 "val": 12.04
@@ -410,8 +410,8 @@ It has the following XML or JSON syntax:
       <configure xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
         <src>RID</src>
         <ts>TIMESTAMP</ts>
-        <props xmlns:foo="http://foo.com">
-           <key1>...</key1>
+        <props xmlns:foo="http://foo.com/goo#">
+           <foo:key1>...</foo:key1>
             ....     
         </props>
       </configure>
@@ -423,6 +423,7 @@ It has the following XML or JSON syntax:
         "src": "RID",
         "ts": "TIMESTAMP",
         "props": {
+          "@vocab": "http://foo.com/goo#"
           "key1": ... ,
           ...
         }
