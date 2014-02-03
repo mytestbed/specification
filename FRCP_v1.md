@@ -115,7 +115,7 @@ properties related to that message. This is for example the case of the
 The properties and values within a `<prop>` child element may follow any of the 
 three alternative syntax (i.e. key 1 to 3) below:
 
-        <props xmlns:foo="http://foo.com">
+        <props xmlns:foo="http://foo.com/goo">
 
           <foo:key1 type="...">some_other_values</foo:key1>
           
@@ -142,7 +142,7 @@ and `<unit>`, but may also include `<origin>`, `<resolution>`, or
 FRCP supports default namespace setting, thus the following message is also 
 valid:
 
-        <props xmlns:foo="http://foo.com">
+        <props xmlns="http://foo.com/goo">
           <key1 type="...">some_other_values</foo:key1>
         </props>
 
@@ -226,6 +226,7 @@ The properties and values within a `"prop"` object may follow any of the
 three alternative syntax (i.e. key 1 to 3) below:
 
         "props": {
+          "@context": "http://foo.com/goo",
           "key1": "some_other_values",        
           "key2": {
             "val": "some_value"
@@ -236,13 +237,18 @@ three alternative syntax (i.e. key 1 to 3) below:
           }
         }
 
+* @context = the resource type context for the properties defined within this 
+`"props"` object. Within FRCP this `@context` key is used to refer to 
+the namespace within which the property keys are defined. 
+    * In the current FRCP version the value for this object will always be a 
+    string URI, i.e. current FRCP does not support or defined inline context 
+    definition as specified in JSON-LD
+    * Thus in the current FRCP version, properties within a "props" object are
+    all defined under the same unique namespace, i.e. in the above example 
+    `key1` and `key2` are from the same namespace.
 * keyi =  the name of the i-th property defined within this `"props"` object
 * The latter descriptive syntax for "key3" uses another object to 
 describe the property in more details, such as `"val"`, or `"unit"`, etc...
-
-The current version of FRCP does not define namespaces for properties described 
-in JSON format. This feature is currently supported only for FRCP messages in 
-[XML format](#syntax_xml).
 
 The type of the value assigned to a `key` element may be any of the types 
 supported in JSON, i.e.
@@ -381,7 +387,7 @@ syntaxes to describe property values
             "ts": "1360889609",
             "itype":"STATUS",
             "props": {
-              "@vocab": "http://foo.com/virtual_machine#"
+              "@context": "http://foo.com/virtual_machine",
               "os": "ubuntu",        
               "osversion": {
                 "val": 12.04
@@ -410,7 +416,7 @@ It has the following XML or JSON syntax:
       <configure xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
         <src>RID</src>
         <ts>TIMESTAMP</ts>
-        <props xmlns:foo="http://foo.com/goo#">
+        <props xmlns:foo="http://foo.com/goo">
            <foo:key1>...</foo:key1>
             ....     
         </props>
@@ -423,7 +429,7 @@ It has the following XML or JSON syntax:
         "src": "RID",
         "ts": "TIMESTAMP",
         "props": {
-          "@vocab": "http://foo.com/goo#"
+          "@context": "http://foo.com/goo",
           "key1": ... ,
           ...
         }
@@ -495,7 +501,7 @@ element/object, which allows ongoing consecutive **inform** message to provide
 progress updates about the configuration. This extended optional syntax is as 
 follows for XML or JSON
 
-        <props xmlns:foo="http://foo.com">
+        <props xmlns:foo="http://foo.com/goo">
           <foo:key1>   
             <current>V1</current>
             <target>V2</target>
@@ -506,6 +512,7 @@ follows for XML or JSON
 
 
         "props": {
+          "@context": "http://foo.com/goo",
           "key1": {
             "current": V1,
             "target": V2,
@@ -564,6 +571,7 @@ These are some examples of **configure** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360895974",
         "props": {
+          "@context": "http://foo.com/iperf",
           "ip": "192.168.1.2" ,
           "port": 5001
         }
@@ -577,6 +585,7 @@ These are some examples of **configure** messages and their corresponding
         "cid": "83ty28",
         "itype": "STATUS",
         "props": {
+          "@context": "http://foo.com/iperf",
           "ip": "192.168.1.2" ,
           "port": 5001
         }
@@ -636,6 +645,7 @@ These are some examples of **configure** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360895906",
         "props": {
+          "@context": "http://foo.com/iperf",
           "transport": "UDP" ,
           "bitrate": 1024
         }
@@ -649,6 +659,7 @@ These are some examples of **configure** messages and their corresponding
         "cid": "4gt521",
         "itype": "STATUS",
         "props": {
+          "@context": "http://foo.com/iperf",
           "transport": "UDP",
           "bitrate": {
             "unit": "kBps",
@@ -667,6 +678,7 @@ These are some examples of **configure** messages and their corresponding
         "cid": "4gt521",
         "itype": "STATUS",
         "props": {
+          "@vocab": "http://foo.com/iperf",
           "transport": "UDP",
           "bitrate": {
             "unit": "kBps",
@@ -692,9 +704,9 @@ XML and JSON syntax:
       <request xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
         <src>RID</src>
         <ts>TIMESTAMP</ts>
-        <props xmlns:foo="http://foo.com">
-           <key1 />
-           <key2 />
+        <props xmlns:foo="http://foo.com/goo">
+           <foo:key1 />
+           <foo:key2 />
             ....     
         </props>
       </request> 
@@ -706,6 +718,7 @@ XML and JSON syntax:
         "src": "RID",
         "ts": "TIMESTAMP",
         "props": {
+          "@context": "http://foo.com/goo",
           "key1": "",
           "key2": "",
           ....
@@ -773,6 +786,7 @@ These are some examples of **request** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360897589",
         "props": {
+          "@context": "http://foo.com/iperf",
           "protocol": "",
           "bitrate": "",
           "packet_size": ""
@@ -787,6 +801,7 @@ These are some examples of **request** messages and their corresponding
         "cid": "ea4afb",
         "itype": "STATUS",
         "props": {
+          "@context": "http://foo.com/iperf",
           "protocol": "UDP",
           "bitrate": { "unit": "kBps", "value": 1024},
           "packet_size": { "unit": "byte", "value": 512},
@@ -826,6 +841,7 @@ These are some examples of **request** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360897611",
         "props": {
+          "@context": "http://foo.com/wirelessnode",
           "child_resource_types": ""
         }
       }
@@ -838,6 +854,7 @@ These are some examples of **request** messages and their corresponding
         "cid": "d812h0",
         "itype": "STATUS",
         "props": {
+          "@context": "http://foo.com/wirelessnode",
           "child_resource_types": [
             "Application",
             "WiFiAtherosInterface",
