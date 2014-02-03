@@ -8,6 +8,8 @@ protocol is currently used by
 entities, and may be implemented by any other software project to interact with 
 other FRCP-enabled components.
 
+This document describes the current FRCP version 2 protocol.
+
 This document is organised as follows:
 
 [Protocol and Interactions](#proto_inter)  
@@ -67,7 +69,7 @@ The generic XML format of a FRCP message is:
         <MTYPE xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
           <src>RID</src>
           <ts>TIMESTAMP</ts>
-          <replyto>TOPIC</replyto>
+          <rp>TOPIC</rp>
           ....     
         </MTYPE>
 
@@ -84,7 +86,7 @@ its publisher. This `<ts>` and the `<mid>` child elements are used to prevent
 message replays.
 * TOPIC = optional. If the publisher of this message would like any replying 
 messages to be published to a specific topic address, then it must set TOPIC to 
-that address in the `<replyto>` element.
+that address in the `<rp>` (i.e. "reply to") element.
 
 This element may then have child elements, which further describe various 
 information specific to the message type. The following sections of this 
@@ -195,7 +197,7 @@ The generic JSON format of a FRCP message is:
           "mid": ID,
           "src": RID,
           "ts": TIMESTAMP,
-          "replyto": TOPIC,
+          "rp": TOPIC,
           ....
         }
 * The meaning of each fields is similar to the previous 
@@ -300,7 +302,7 @@ An **inform** message has the following XML syntax:
         <inform xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
           <src>RID</src>
           <ts>TIMESTAMP</ts>
-          <itype>TYPE</itype>
+          <it>TYPE</it>
           <cid>CID</cid>
           ....     
         </inform> 
@@ -312,7 +314,7 @@ Or alternatively the following JSON syntax:
           "mid": "ID",
           "src": "RID",
           "ts": "TIMESTAMP",
-          "itype":"TYPE",
+          "it":"TYPE",
           "cid": "CID",
           ....
         }
@@ -350,8 +352,9 @@ report about some of its properties
 3. should publish its inform message on its main topic address (e.g. this could 
 be mapped from its globally unique ID as is often the case in OMF6 resources).
 However, if this **inform** message is a reply to a previously received message
-which had a `replyto` element/object set, then a copy of this **inform** 
-message must also be published to the topic address specified by that `replyto`.
+which had a `rp` (i.e. "reply to") element/object set, then a copy of this 
+**inform** message must also be published to the topic address specified by 
+that `rp`.
 
 ### Examples
 
@@ -366,7 +369,7 @@ syntaxes to describe property values
           <inform xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="48fa94">
             <src>xmpp://node123@domainA.com</src>
             <ts>1360889609</ts>
-            <itype>STATUS</itype>
+            <it>STATUS</it>
             <props xmlns:vm="http://foo.com/virtual_machine">
               <vm:os>
                 <value>ubuntu</value>
@@ -385,7 +388,7 @@ syntaxes to describe property values
             "mid": "48fa94s",
             "src": "amqp://domainA.com/node123",
             "ts": "1360889609",
-            "itype":"STATUS",
+            "it":"STATUS",
             "props": {
               "@context": "http://foo.com/virtual_machine",
               "os": "ubuntu",        
@@ -554,7 +557,7 @@ These are some examples of **configure** messages and their corresponding
         <src>xmpp://iperf456@domainB.com</src>
         <ts>1360895982</ts>
         <cid>83ty28</cid>
-        <itype>STATUS</itype>
+        <it>STATUS</it>
         <props xmlns:iperf="http://foo.com/iperf">
            <iperf:target type='hash'>
              <ip type='string'>192.168.1.2</ip>
@@ -583,7 +586,7 @@ These are some examples of **configure** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360895982",
         "cid": "83ty28",
-        "itype": "STATUS",
+        "it": "STATUS",
         "props": {
           "@context": "http://foo.com/iperf",
           "ip": "192.168.1.2" ,
@@ -609,7 +612,7 @@ These are some examples of **configure** messages and their corresponding
         <src>xmpp://iperf456@domainB.com</src>
         <ts>1360895966</ts>
         <cid>4gt521</cid>
-        <itype>STATUS</itype>
+        <it>STATUS</it>
         <props xmlns:iperf="http://foo.com/iperf">
            <iperf:bitrate>
              <unit>kBps</unit>
@@ -625,7 +628,7 @@ These are some examples of **configure** messages and their corresponding
         <src>xmpp://iperf456@domainB.com</src>
         <ts>1360895976</ts>
         <cid>4gt521</cid>
-        <itype>STATUS</itype>
+        <it>STATUS</it>
         <props xmlns:iperf="http://foo.com/iperf">
            <iperf:bitrate>
              <unit>kBps</unit>
@@ -657,7 +660,7 @@ These are some examples of **configure** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360895966",
         "cid": "4gt521",
-        "itype": "STATUS",
+        "it": "STATUS",
         "props": {
           "@context": "http://foo.com/iperf",
           "transport": "UDP",
@@ -676,7 +679,7 @@ These are some examples of **configure** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360895976",
         "cid": "4gt521",
-        "itype": "STATUS",
+        "it": "STATUS",
         "props": {
           "@vocab": "http://foo.com/iperf",
           "transport": "UDP",
@@ -740,9 +743,9 @@ This **inform** message is similar to the one sent as a reply to a
 2. it should publish this **inform** message to its main topic address (e.g. in 
 the OMF6 implementation, this topic derives from the entity's unique resource 
 ID)
-3. if the **request** message contains a `replyto` element/object, then a copy 
+3. if the **request** message contains a `rp` element/object, then a copy 
 of this **inform** message should also be published on the topic address given 
-in that `replyto` element/object
+in that `rp` element/object
 
 ### Examples
 
@@ -765,7 +768,7 @@ These are some examples of **request** messages and their corresponding
         <src>xmpp://iperf456@domainB.com</src>
         <ts>1360897595</ts>
         <cid>ea4afb</cid>
-        <itype>STATUS</itype>
+        <it>STATUS</it>
         <props xmlns:iperf="http://foo.com/iperf">
           <iperf:protocol>UDP</iperf:protocol>
           <iperf:bitrate>
@@ -799,7 +802,7 @@ These are some examples of **request** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360897595",
         "cid": "ea4afb",
-        "itype": "STATUS",
+        "it": "STATUS",
         "props": {
           "@context": "http://foo.com/iperf",
           "protocol": "UDP",
@@ -822,7 +825,7 @@ These are some examples of **request** messages and their corresponding
         <src>xmpp://node456@domainB.com</src>
         <ts>1360897619</ts>
         <cid>g345h7</cid>
-        <itype>STATUS</itype>
+        <it>STATUS</it>
         <props xmlns:wirelessnode="http://foo.com/wirelessnode">
           <wirelessnode:child_resource_types type='Array'>
             <item type='string'>Application</item>
@@ -852,7 +855,7 @@ These are some examples of **request** messages and their corresponding
         "src": "amqp://domainA.com/node123",
         "ts": "1360897619",
         "cid": "d812h0",
-        "itype": "STATUS",
+        "it": "STATUS",
         "props": {
           "@context": "http://foo.com/wirelessnode",
           "child_resource_types": [
