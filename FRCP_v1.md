@@ -13,6 +13,7 @@ This document describes the current FRCP version 2 protocol.
 This document is organised as follows:
 
 [Protocol and Interactions](#proto_inter)  
+[Messaging System, Naming and Addressing](#msg_system)  
 [Generic Message Syntax](#syntax_msg) - [XML](#syntax_xml) and [JSON](#syntax_json) format  
 [Inform Syntax](#syntax_inform)  
 [Configure Syntax](#syntax_configure)  
@@ -20,7 +21,7 @@ This document is organised as follows:
 [Create Syntax](#syntax_create)  
 [Release Syntax](#syntax_release)  
 [Optional Guard Syntax](#syntax_guard)  
-[Handling Groups of Resources](#syntax_group)  
+[Core Properties for All Resources](#core_properties)  
 
 ----
 
@@ -51,6 +52,44 @@ message endpoint for every component and we therefore introduce an optional
 **service address** (e.g. **aggregate manager**) for each component. The 
 **service address** identifies a proxy which normally serves many components, 
 requiring the message to contain the component id as well.
+
+[(jump to top)](#frcp)
+
+----
+
+## <a name="msg_system"></a>Messaging System, Naming and Addressing
+
+As a generic protocol FRCP does not require a specific messaging system, or
+naming or addressing conventions. However _without loss of generality_, the 
+remaining of this document will assume the following context, to allow for a
+easier description and illustrations of the protocol.
+
+**Messaging System**
+
+This document assumes that a publish-and-subscriber (PubSub) messaging system
+is used between entities exchanging FRCP messages. In such a system, entities
+may **subscribe** to **topics**, they will then receive any messages which have
+been **published** for that topic by any other entities.
+
+**Naming and Addressing Convention**
+
+This document assumes that a FRCP entity has a globally unique ID, which is
+selected by its creator (e.g. another FRCP entity). Interoperable deployments of
+FRCP entities must agree on a convention to map this unique ID to a unique
+address in the underlying messaging system. Thus while FRCP can be used with
+many naming and addressing convention, FRCP deployements which want to
+interoperate must use the same convention.
+
+This document (and [the reference FRCP implementation](https://github.com/mytestbed/omf)) assumes the following convention:
+
+* assuming that
+    * an entity has the ID: `res123`
+    * a PubSub messaging system is being used
+    * the server providing `res123` access to that PubSub system is named `foo.com`
+* then the address of the topic associated to that entity is
+    * if using a XMPP-based PubSub system: `xmpp://res123@foo.com`
+    * if using a AMPQ-based PubSub system: `amqp://foo.com/res123`
+
 
 [(jump to top)](#frcp)
 
@@ -807,7 +846,7 @@ These are some examples of **request** messages and their corresponding
           "@context": "http://foo.com/iperf",
           "protocol": "UDP",
           "bitrate": { "unit": "kBps", "value": 1024},
-          "packet_size": { "unit": "byte", "value": 512},
+          "packet_size": { "unit": "byte", "value": 512}
         }
       }
 
@@ -874,10 +913,227 @@ These are some examples of **request** messages and their corresponding
 ## <a name="syntax_create"></a>Create Syntax
 
 ### Overview
+
+A ***create*** message is published to a topic to ask its subscriber(s) to 
+create another resource. The creator is referred to as the parent resource (P) 
+and the newly created resource as the child (C). This message has the following 
+XML and JSON syntax:
+
+      <create xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
+        <src>RID</src>
+        <ts>TIMESTAMP</ts>
+        <props>
+          <type>TYPE</type>
+          ...
+        </props>
+      </create> 
+
+
+      {
+        "op": "create",
+        "mid": "ID",
+        "src": "RID",
+        "ts": "TIMESTAMP",
+        "props": {
+          "type": "TYPE",
+          ...
+          }
+        }
+      }
+
+where TYPE is the type of child resource to create. The list of valid resource 
+types can be queried from the parent resource (see the [Request Message examples]
+(#syntax_request), or discovered out-of-band.
+
+In addition to the `type` property, a ***create*** message may also carry
+additional optional properties in its `props` element/object. These additional
+properties should follow the syntax defined in the [General message](#syntax_msg)
+and [Configure message](#syntax_configure) sections.
+
 ### Usage
+
+When a FRCP entity P receives a **create** message:
+
+1. P must decide if it will create the requested child resource C. This 
+decision's process and policies is specific to each resource and thus outside
+the scope of FRCP 
+2. if P agrees to create C, then P must select and create a globally unique ID
+for C and a corresponding unique topic address in the messaging system
+3. then P must provision the new resource C. Depending on C's type this could
+involve tasks such as starting up a new VM, starting up a new application, or
+activating a device. P may either perform these tasks itself or ask
+some other entities to do them. This provisioning is outside the scope of FRCP
+4. if some additional properties with values are set as part of the ***create***
+message, then the newly provisioned resource C must set its properties
+accordingly as if it had received these values via a ***configure*** message
+5. P must publish an ***inform*** message to its own topic to report on the
+outcome of creation process. This message may be published as soon as the topic
+address for the child resource has been created. This ***inform*** message has
+the following XML and JSON syntax:
+
+          <inform xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid=ID>
+            <src>RID</src>
+            <ts>TIMESTAMP</ts>
+            <cid>CID</cid>
+            <it>INFOTYPE</it>
+            <reason>MOREINFO</reason>
+            <props>
+              <res_id>CHILDID</res_id>
+              <type>TYPE</type>
+              ...
+            </props>
+          </inform>
+
+          {
+            "op": "inform",
+            "mid": "ID",
+            "src": "RID",
+            "ts": "TIMESTAMP",
+            "cid": "CID",
+            "it": "CREATION.OK",
+            "reason": "MOREINFO",
+            "props": {
+              "res_id": "CHILDID",
+              "type": "TYPE",
+              ...
+            }
+          }
+
+    Where `INFOTYPE` is equal to either `CREATION.OK` (i.e. the child resource
+    was created successfully) or `CREATION.FAILED` (i.e. the child resource
+    cannot be created), and `CHILDID` is the unique ID of the newly created
+    resource, and `MOREINFO` is an optional message providing additional
+    information on the creation process (e.g. why did it fail?)
+    
+6. if some some additional properties and values were given as part of the 
+***create*** message, then the corresponding ***inform*** message must have in
+its `props` element/object the configured properties and values (i.e. as if
+they were originally sent in a [Configure message](#syntax_configure))
+
 ### Examples
 
+These are some examples of **create** messages and their corresponding 
+**inform** reply messages, both in XML and JSON.
 
+**example 1 (XML)**
+
+      <create xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="1ab3f0">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360889715</ts>
+        <props xmlns:vm="http://foo.com/virtual_machine">
+          <type>virtual_machine</type>
+          <vm:os>ubuntu</vm:os>
+          <vm:osversion>12.04</vm:osversion>
+          <vm:ram>
+            <value>8</value>
+            <unit>GB</unit>
+          </vm:ram>
+        </props>
+      </create>
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="27ab23">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360889720</ts>
+        <cid>1ab3f0</cid>
+        <it>CREATION.OK</it>
+        <props xmlns:vm="http://foo.com/virtual_machine">
+          <res_id>xmpp://vm456@domainB.com</res_id>
+          <type>virtual_machine</type>
+          <vm:os>ubuntu</vm:os>
+          <vm:osversion>12.04</vm:osversion>
+          <vm:ram>
+            <value>8</value>
+            <unit>GB</unit>
+          </vm:ram>
+        </props>
+      </inform>
+
+**example 1 (JSON)**
+
+      {
+        "op": "request",
+        "mid": "1ab3f0",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360889715",
+        "props": {
+          "@context": "http://foo.com/virtual_machine",
+          "type": "virtual_machine",
+          "os": "ubuntu",
+          "osversion": "12.04",
+          "ram": { "unit": "gigabyte", "value": 8}
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "27ab23",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360889720",
+        "cid": "1ab3f0",
+        "it": "CREATION.OK",
+        "props": {
+          "@context": "http://foo.com/virtual_machine",
+          "res_id": "xmpp://vm456@domainB.com",
+          "type": "virtual_machine",
+          "os": "ubuntu",
+          "osversion": "12.04",
+          "ram": { "unit": "gigabyte", "value": 8}
+        }
+      }
+
+**example 2 (XML)**
+
+      <create xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="962ac5">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360889765</ts>
+        <props xmlns:vm="http://foo.com/wifi_interface">
+          <type>WiFiAtherosInterface</type>
+          <wifi_interface:std>g</wifi_interface:std>
+          <wifi_interface:channel>6</wifi_interface:channel>
+          <wifi_interface:mode>adhoc</wifi_interface:mode>
+        </props>
+      </create>
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="xd389g">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360889795</ts>
+        <cid>962ac5</cid>
+        <it>CREATION.FAILED</it>
+        <reason>Unknown or unsupported resource type</reason>
+        <props xmlns:vm="http://foo.com/wifi_interface">
+          <type>WiFiAtherosInterface</type>
+        </props>
+      </inform>
+
+**example 2 (JSON)**
+
+      {
+        "op": "create",
+        "mid": "962ac5",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360889765",
+        "props": {
+          "@context": "http://foo.com/wifi_interface",
+          "type": "WiFiAtherosInterface",
+          "std": "g",
+          "channel": 6,
+          "mode": "adhoc"
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "xd389g",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360889795",
+        "cid": "962ac5",
+        "it": "CREATION.FAILED",
+        "reason": "Unknown or unsupported resource type"
+        "props": {
+          "@context": "http://foo.com/wifi_interface",
+          "type": "WiFiAtherosInterface",
+        }
+      }
 
 [(jump to top)](#frcp)
 
@@ -886,9 +1142,127 @@ These are some examples of **request** messages and their corresponding
 ## <a name="syntax_release"></a>Release Syntax
 
 ### Overview
+
+A ***release*** message is published to a topic to ask its subscriber(s) to 
+release (i.e. terminate) a given resource child. This message has the following 
+XML and JSON syntax:
+
+      <release xmlns="http://schema.mytestbed.net/omf/X.Y/protocol" mid=ID>
+        <src>RID</src>
+        <ts>TIMESTAMP</ts>
+        <props>
+          <res_id>CHILDID</res_id>
+        </props>
+      </release> 
+
+
+      {
+        "op": "release",
+        "mid": "ID",
+        "src": "RID",
+        "ts": "TIMESTAMP",
+        "props": {
+          "res_id": "CHILDID"
+        }
+      }
+
+where `CHILDID` is the globally unique ID of the child resource to release.
+
 ### Usage
+
+When a FRCP entity P receives a **release** message for one of its child
+resource C:
+
+1. P should inform C that it will be imminently released. This gives the
+opportunity for C to perform any cleanup tasks if required. Then P should
+initiate the termination of C. The mechanism for P to inform C of its release
+and for P to terminate C are outside the scope of FRCP
+2. once C is terminated, P should remove the C's topic address from the
+messaging system. Then P must publish an **inform** message to its own topic
+address to convey that information, using the following XML or JSON syntax:
+
+          <inform xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid=ID>
+            <src>RID</src>
+            <ts>TIMESTAMP</ts>
+            <cid>CID</cid>
+            <it>INFOTYPE</it>
+            <reason>MOREINFO</reason>
+            <props>
+              <res_id>CHILDID</res_id>
+            </props>
+          </inform>
+
+          {
+            "op": "inform",
+            "mid": "ID",
+            "src": "RID",
+            "ts": "TIMESTAMP",
+            "cid": "CID",
+            "it": "CREATION.OK",
+            "reason": "MOREINFO",
+            "props": {
+              "res_id": "CHILDID"
+            }
+          }
+
+    Where `INFOTYPE` is equal to either `RELEASE.OK` (i.e. the child resource
+    was released successfully) or `RELEASE.FAILED` (i.e. the child resource
+    cannot be released), and `MOREINFO` is an optional message providing 
+    additional information on the release process (e.g. why did it fail?)
+
+3. The release process is recursive! Any child resource of a resource currently
+being released must first be all released. Thus when receiving a release
+instruction from its parent, a resource must release all of its own child
+resources
+
 ### Examples
 
+These are some examples of **release** messages and corresponding 
+**inform** reply messages, both in XML and JSON.
+
+**XML**
+
+      <release xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="fgh432">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1360889900</ts>
+        <props>
+          <res_id>interface789</res_id>
+        </props>
+      </release>
+
+      <inform xmlns="http://omf.mytestbed.net/omf/6.0/protocol" mid="8714g0">
+        <src>xmpp://iperf456@domainB.com</src>
+        <ts>1360889908</ts>
+        <cid>fgh432</cid>
+        <it>RELEASE.OK</it>
+        <props>
+          <res_id>interface789</res_id>
+        </props>
+      </inform>
+
+**JSON**
+
+      {
+        "op": "release",
+        "mid": "fgh432",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360889900",
+        "props": {
+          "res_id": "interface789"
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "8714g0",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360889908",
+        "cid": "fgh432",
+        "it": "RELEASE.OK",
+        "props": {
+          "res_id": "interface789"
+        }
+      }
 
 
 [(jump to top)](#frcp)
@@ -898,15 +1272,168 @@ These are some examples of **request** messages and their corresponding
 ## <a name="syntax_guard"></a>Optional Guard Element or Object
 
 ### Usage
+
+All the messages described above may also include an optional `guard`
+element/object. When present, it should contain a list of key/values similar to
+a `props` element/object. When an FRCP resource receives a message with such a
+`guard` element/object, it must act on the message **ONLY IF** all of its
+properties which are mentioned in the `guard` element/object have the exact
+corresponding values. Such an exact match must happen on all properties of type
+string, fixnum, boolean, hash, or array. Indeed, if the property 'foo' is of a
+type 'array', then all the items in the entity's `foo` property have to match
+all the items described in the `foo` key within the guard element/object.
+In the future, FRCP may support additional 'mode' attributes to request the 
+type of match to perform.
+
+Therefore if many entities are subscribing to a same topic address on the
+messaging system, then using a `guard` element/object allow the publisher of a
+message to target a specific set of these subscribers.
+
+For example, if a message has a `guard` element containing two properties `p1`
+and `p2` with corresponding values `v1` and `v2`, then this message must only be
+processed by the receiving subscribers which have their a `p1` and `p2`
+properties set to the values `v1` and `v2`, respectively.
+
 ### Examples
 
+Here is are XML and JSON configure messages with a `guard` element/object
+
+      <configure xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="dj15fa">
+        <src>xmpp://node123@domainB.com</src>
+        <ts>1360896006</ts>
+        <props xmlns:iperf="http://foo.com/iperf">
+           <iperf:bitrate>
+             <unit>kBps</unit>
+             <value>1024</value>
+           </iperf:bitrate>
+        </properties>
+        <guard xmlns:iperf="http://foo.com/iperf">
+            <iperf:transport>UDP</iperf:transport>
+            <iperf:target>192.168.1.10</iperf:target>
+        </guard>
+      </configure>
+
+      {
+        "op": "configure",
+        "mid": "dj15fa",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1360896006",
+        "props": {
+          "@context": "http://foo.com/iperf",
+          "bitrate": { "unit": "kBps", "value": 1024}
+        }
+        "guard": {
+          "@context": "http://foo.com/iperf",
+          "transport": "UDP",
+          "target": "192.168.1.10"
+        }
+      }
+
+  Only the Iperf resources, which have their `transport` and `target` properties
+  set to `UDP` and `192.168.1.10`, respectively, will act on this configure
+  message, i.e. will configure their bitrate to 1024 kBps. 
 
 [(jump to top)](#frcp)
 
 ----
 
-## <a name="syntax_group"></a>Handling Groups of Resources
+## <a name="core_properties"></a>Core Properties for All Resources
 
-### Usage
-### Examples
+FRCP defines the following small set of core properties that must be
+implemented by all resources.
+
+### uid
+
+Its value is the resource's globally unique ID
+
+### name and hrn
+
+Its value is a human friendly/readable name for this resource
+
+### supported_children_type
+
+It is an array of all the type of child resources that this resource can create
+
+### child_resources
+
+It is an array of the IDs of all the child resources which were created by this
+resources
+
+### membership
+
+In addition to subscribing to the topic address corresponding to its ID in the
+messaging system, a resource may also subscribe to any other topic addresses. 
+
+This allows the efficient delivery of FRCP to a group of resources. Assuming we
+have two distinct resource R1 and R2, both are subscribed to their individual
+topic addresses T1 and T2. If they are also both subscribed to a third topic G.
+Then sending a single message to topic G will allow us to reach both resource
+R1 and R2. Thus this could be viewed as R1 and R2 both belonging to a group 
+named G.
+
+In FRCP, the **membership** property of a resource is an array that contains
+the ID of the topics to which that resource has subscribed to in addition to its
+own topic address. Thus in the above example, the **membership** property of R1 would be equal to ["G"].
+
+To tell a resource to subscribe to new group, one should send a **configure**
+message to that resource with `membership` property set to the group's topic.
+The resource receiving that **configure** message must add the new topic to its
+**membership** array property, then it must subscribe to that new topic, and it
+must finally return an **inform** message with a `membership` element/object
+with list of all of the topics it is subscribed to.
+
+**XML example**
+
+      <configure xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="aed351">
+        <src>xmpp://node123@domainA.com</src>
+        <ts>1394429797</ts>
+        <props>
+          <membership type="string">xmpp://blue_group@domainC.com</membership>
+        </props>
+      </configure>
+
+      <inform xmlns="http://schema.mytestbed.net/omf/6.0/protocol" mid="b86017">
+        <src>xmpp://node456@domainB.com</src>
+        <ts>1394429797</ts>
+        <cid>aed351</cid>
+        <it>STATUS</it>
+        <props>
+          <membership type="array">
+            <it type="string">xmpp://square_group@domainA.com</it>
+            <it type="string">xmpp://heavy_group@domainB.com</it>
+            <it type="string">xmpp://blue_group@domainC.com</it>
+          </membership>
+        </props>
+      </inform>
+
+**JSON example**
+
+      {
+        "op": "configure",
+        "mid": "aed351",
+        "src": "amqp://domainA.com/node123",
+        "ts": "1394429797",
+        "props": {
+          "membership": "amqp://domainC.com/blue_group"
+        }
+      }
+
+      {
+        "op": "inform",
+        "mid": "b86017",
+        "src": "amqp://domainB.com/node456",
+        "ts": "1394429797",
+        "cid": "aed351",
+        "it": "STATUS",
+        "props": {
+          "membership": [
+            "amqp://domainA.com/square_group",
+            "amqp://domainB.com/heavy_group",
+            "amqp://domainC.com/blue_group"
+          ]
+        }
+      }
+
+
+
 
